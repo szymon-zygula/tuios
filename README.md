@@ -33,5 +33,4 @@ tuios
 ```
 
 To look around first without a USOS account, run `tuios --mock`. It never connects to
-USOS: the students, courses and points are random, made up on each start, and gone
-when the program exits.
+USOS: the students, courses and points are random, made up on each start.
