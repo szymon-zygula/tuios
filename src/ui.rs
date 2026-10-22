@@ -40,6 +40,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .flex(Flex::Center)
         .areas(body.inner(Margin::new(1, 0)));
     match app.screen {
+        Screen::University => draw_universities(f, body, app),
         Screen::Setup => draw_setup(f, body, app),
         Screen::Auth => draw_auth(f, body, app),
         Screen::Courses => draw_courses(f, body, app),
@@ -66,7 +67,10 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
         ));
     }
     let mut crumbs: Vec<String> = Vec::new();
-    let in_course = !matches!(app.screen, Screen::Setup | Screen::Auth | Screen::Courses);
+    let in_course = !matches!(
+        app.screen,
+        Screen::University | Screen::Setup | Screen::Auth | Screen::Courses
+    );
     if in_course && let Some(c) = app.current_course() {
         crumbs.push(format!("{} ({})", c.course_name, c.term_id));
     }
@@ -81,7 +85,7 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
         (Screen::StudentNodes, _) | (Screen::Form, Some(Screen::StudentNodes)) => {
             crumbs.extend(student);
         }
-        (Screen::Setup, _) => crumbs.push("API key & sign-in".into()),
+        (Screen::Setup | Screen::University, _) => crumbs.push("API key & sign-in".into()),
         _ => {}
     }
     if app.screen == Screen::Form
@@ -137,11 +141,18 @@ fn hints(app: &App) -> Vec<(&'static str, &'static str, u8)> {
     ];
     let with = |extra: &[(&'static str, &'static str, u8)]| [&picker[..], extra].concat();
     match app.screen {
+        Screen::University => vec![
+            ("enter", "choose", 1),
+            ("↑↓", "move", 6),
+            ("type", "to filter", 7),
+            ("esc", "type the address instead", 0),
+        ],
         Screen::Setup => {
             let mut h = vec![
                 ("enter", "next field", 1),
                 ("ctrl-s", "save & sign in", 0),
                 ("ctrl-o", "open the key page", 1),
+                ("ctrl-p", "choose university", 3),
                 ("tab", "switch field", 4),
             ];
             if app.setup.focus == LANGUAGE_FIELD {
@@ -231,6 +242,52 @@ fn placeholder<T>(
 
 // ----- setup and sign-in -----
 
+fn draw_universities(f: &mut Frame, area: Rect, app: &mut App) {
+    let items = app.university_items();
+    let hosts: Vec<String> = app
+        .installations
+        .ready()
+        .map(|list| {
+            list.iter()
+                .map(|i| i.base_url.trim_start_matches("https://").to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+    let host_width = hosts.iter().map(|h| width(h)).max().unwrap_or(0).min(34) as u16;
+    let columns = Columns {
+        widths: vec![Constraint::Length(host_width)],
+        cells: Box::new(move |i| {
+            vec![Cell::from(Span::styled(
+                ellipsize(&hosts[i], host_width as usize),
+                Style::new().fg(SOFT),
+            ))]
+        }),
+        name_style: Box::new(|_| Style::new()),
+    };
+    let placeholder = placeholder(
+        &app.installations,
+        app.frame,
+        "Asking USOS for the list of universities…",
+        |list| {
+            list.is_empty()
+                .then_some("USOS lists no universities; esc lets you type the address")
+        },
+    );
+    let t = title(
+        &["Which university's USOS do you use?"],
+        Some("for the API key and sign-in".into()),
+    );
+    draw_picker(
+        f,
+        area,
+        t,
+        &mut app.university_picker,
+        &items,
+        columns,
+        placeholder,
+    );
+}
+
 fn draw_setup(f: &mut Frame, area: Rect, app: &mut App) {
     let card = centered(area, 92, 30);
     let outer = block(title(&["Connect tuios to USOS"], None));
@@ -239,19 +296,33 @@ fn draw_setup(f: &mut Frame, area: Rect, app: &mut App) {
     f.render_widget(outer, card);
     let setup = &app.setup;
     let step = |n: &str| Span::styled(format!("{n}. "), Style::new().fg(ACCENT).bold());
-    let intro = vec![
-        Line::raw("tuios talks to USOS with an API key of your own. Getting one is free and"),
-        Line::raw("takes a minute, and is needed only once:"),
-        Line::raw(""),
+    let open = if setup.fields[0].text.trim().is_empty() {
+        Line::from(vec![
+            step("1"),
+            Span::raw("Choose your university"),
+            Span::styled(" (ctrl-p)", Style::new().fg(DIM)),
+            Span::raw(", or type its USOS API address below."),
+        ])
+    } else {
         Line::from(vec![
             step("1"),
             Span::raw("Open "),
             Span::styled(setup.developers_url(), Style::new().fg(ACCENT).underlined()),
             Span::styled("  (ctrl-o)", Style::new().fg(DIM)),
-        ]),
+        ])
+    };
+    let intro = vec![
+        Line::raw("tuios talks to USOS with an API key of your own. Getting one is free and"),
+        Line::raw("takes a minute, and is needed only once:"),
+        Line::raw(""),
+        open,
         Line::from(vec![
             Span::raw("   "),
-            Span::raw("and sign in with your USOS account."),
+            Span::raw(if setup.fields[0].text.trim().is_empty() {
+                "The page that gives out keys then appears here."
+            } else {
+                "and sign in with your USOS account."
+            }),
         ]),
         Line::from(vec![
             step("2"),

@@ -6,7 +6,9 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-pub const DEFAULT_BASE_URL: &str = "https://apps.usos.pw.edu.pl";
+/// Any installation answers with the list of all of them; this one is the University
+/// of Warsaw's, where USOS API is developed.
+pub const INSTALLATIONS_URL: &str = "https://usosapps.uw.edu.pl/services/apisrv/installations";
 
 /// Per-user settings. They hold the user's own API key, so they live in the user's
 /// config directory and never in the project.

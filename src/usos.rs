@@ -634,6 +634,46 @@ fn structure_only(mut tree: Tree) -> Tree {
     tree
 }
 
+/// A university running USOS API.
+#[derive(Clone)]
+pub struct Installation {
+    pub name: String,
+    pub base_url: String,
+}
+
+/// Every public USOS API installation, by name. Needs no key, so it can be asked
+/// before the user has one.
+pub async fn installations() -> Result<Vec<Installation>> {
+    let body = reqwest::Client::new()
+        .get(crate::config::INSTALLATIONS_URL)
+        .timeout(Duration::from_secs(20))
+        .send()
+        .await
+        .context("could not reach USOS to list universities")?
+        .error_for_status()?
+        .text()
+        .await?;
+    let v: Value = serde_json::from_str(&body).context("unexpected list of universities")?;
+    let mut list: Vec<Installation> = v
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|i| {
+            let url = i["base_url"].as_str()?.trim_end_matches('/');
+            // Some entries still say http://; the key and token must not travel unencrypted.
+            let url = url
+                .strip_prefix("http://")
+                .map_or(url.to_string(), |rest| format!("https://{rest}"));
+            Some(Installation {
+                name: lang_of(&i["institution_name"], "pl"),
+                base_url: url,
+            })
+        })
+        .collect();
+    list.sort_by_cached_key(|i| deunicode::deunicode(&i.name).to_lowercase());
+    Ok(list)
+}
+
 async fn signed_post(
     http: &reqwest::Client,
     settings: &Settings,

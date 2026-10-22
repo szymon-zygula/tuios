@@ -9,8 +9,8 @@ use crate::config::{self, Settings, Token};
 use crate::input::Input;
 use crate::picker::Picker;
 use crate::usos::{
-    Course, GradeEntry, GradeValue, Group, Kind, NewGrade, NewPoints, Node, PointEntry, ScaleValue,
-    Tree, Usos,
+    self, Course, GradeEntry, GradeValue, Group, Installation, Kind, NewGrade, NewPoints, Node,
+    PointEntry, ScaleValue, Tree, Usos,
 };
 
 /// USOS rejects longer comments.
@@ -21,6 +21,7 @@ pub enum Msg {
     Tick,
     AuthUrl(Result<(String, Token)>),
     AuthDone(Result<Token>),
+    Installations(Result<Vec<Installation>>),
     Courses(Result<Vec<Course>>),
     Tree {
         epoch: u64,
@@ -51,6 +52,7 @@ pub enum Saved {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
+    University,
     Setup,
     Auth,
     Courses,
@@ -115,10 +117,7 @@ impl Setup {
                 fields[2].set(s.consumer_secret.clone());
                 fields[3].set(s.language.clone());
             }
-            None => {
-                fields[0].set(config::DEFAULT_BASE_URL);
-                fields[3].set("pl");
-            }
+            None => fields[3].set("pl"),
         }
         Self {
             fields,
@@ -204,6 +203,9 @@ pub struct App {
     pub screen: Screen,
     pub setup: Setup,
     pub auth: Auth,
+    /// Universities offered on first start, from USOS API's own list.
+    pub installations: Load<Vec<Installation>>,
+    pub university_picker: Picker,
     pub courses: Load<Vec<Course>>,
     pub course_picker: Picker,
     pub course: Option<usize>,
@@ -242,6 +244,8 @@ impl App {
             screen: Screen::Courses,
             setup: Setup::new(settings.as_ref()),
             auth: Auth::default(),
+            installations: Load::Loading,
+            university_picker: Picker::default(),
             courses: Load::Loading,
             course_picker: Picker::default(),
             course: None,
@@ -264,7 +268,7 @@ impl App {
             reloading: false,
         };
         match &app.usos {
-            None => app.screen = Screen::Setup,
+            None => app.open_universities(),
             Some(u) if u.needs_auth() => app.start_auth(),
             Some(_) => app.load_courses(),
         }
@@ -600,6 +604,14 @@ impl App {
                     }
                 }
             }
+            Msg::Installations(result) => {
+                self.installations = match result {
+                    Ok(list) => Load::Ready(list),
+                    Err(e) => Load::Failed(format!("{e:#}")),
+                };
+                let items = self.university_items();
+                self.university_picker.reset(&items);
+            }
             Msg::Courses(result) => {
                 self.courses = match result {
                     Ok(cs) => Load::Ready(cs),
@@ -663,6 +675,7 @@ impl App {
             return Action::None;
         }
         match self.screen {
+            Screen::University => self.key_university(key),
             Screen::Setup => return self.key_setup(key),
             Screen::Auth => return self.key_auth(key),
             Screen::Courses => return self.key_courses(key),
@@ -677,6 +690,59 @@ impl App {
     }
 
     // ----- setup and sign-in -----
+
+    /// The list of universities, from which the USOS API address is taken.
+    fn open_universities(&mut self) {
+        self.screen = Screen::University;
+        if !matches!(self.installations, Load::Ready(_)) {
+            self.load_universities();
+        }
+    }
+
+    fn load_universities(&mut self) {
+        self.installations = Load::Loading;
+        self.spawn(async { Msg::Installations(usos::installations().await) });
+    }
+
+    pub fn university_items(&self) -> Vec<String> {
+        self.installations
+            .ready()
+            .map(|list| list.iter().map(|i| i.name.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    fn key_university(&mut self, key: KeyEvent) {
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let items = self.university_items();
+        match key.code {
+            KeyCode::Esc if !self.university_picker.query.is_empty() => {
+                self.university_picker.clear_query(&items);
+            }
+            // Not listed, or the list did not load: the address can be typed instead.
+            KeyCode::Esc => {
+                self.setup.focus = 0;
+                self.screen = Screen::Setup;
+            }
+            KeyCode::Char('r') if ctrl => self.load_universities(),
+            KeyCode::Enter => {
+                let chosen = self.university_picker.selected_index().and_then(|i| {
+                    self.installations
+                        .ready()?
+                        .get(i)
+                        .map(|u| u.base_url.clone())
+                });
+                if let Some(url) = chosen {
+                    self.setup.fields[0].set(url);
+                    self.setup.focus = 1;
+                    self.setup.error = None;
+                    self.screen = Screen::Setup;
+                }
+            }
+            _ => {
+                self.university_picker.handle_key(key, &items);
+            }
+        }
+    }
 
     /// Whether Esc on the setup screen goes back rather than quitting.
     pub fn setup_returns(&self) -> bool {
@@ -699,7 +765,12 @@ impl App {
                 Some(back) if self.usos.is_some() => self.screen = back,
                 _ => return Action::Quit,
             },
+            KeyCode::Char('o') if ctrl && self.setup.fields[0].text.trim().is_empty() => {
+                self.setup.focus = 0;
+                self.setup.error = Some("Choose your university first (ctrl-p)".into());
+            }
             KeyCode::Char('o') if ctrl => open_in_browser(&self.setup.developers_url()),
+            KeyCode::Char('p') if ctrl => self.open_universities(),
             KeyCode::Char('s') if ctrl => self.finish_setup(),
             KeyCode::Left | KeyCode::Right | KeyCode::Char(' ')
                 if self.setup.focus == LANGUAGE_FIELD =>
