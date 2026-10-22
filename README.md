@@ -12,12 +12,11 @@ But the code might be doing something stupid. Use at your own risk.
 
 ## Screenshots
 
-All screenshots show `tuios --mock`: the students are characters from Mozart's operas,
-and the courses and points are made up.
+All screenshots show `tuios --mock`: made-up students, courses and points.
 
 | | |
 |---|---|
-| ![Points and comments of every student for one task](docs/screenshots/students.png) | ![Fuzzy search: "dno" finds Don Ottavio, Don Alfonso, Don Curzio and Idomeneo](docs/screenshots/fuzzy.png) |
+| ![Points and comments of every student for one task](docs/screenshots/students.png) | ![Fuzzy search: "kwk" finds Krawczyk and Kowalczyk](docs/screenshots/fuzzy.png) |
 | Every student's points and comment for one task | Fuzzy search everywhere |
 | ![Entering points and a comment](docs/screenshots/form.png) | ![Choosing a grade on the 2–5 scale](docs/screenshots/grade.png) |
 | Points with a comment for the student | Grades, typed or picked with ←→ |
@@ -34,5 +33,5 @@ tuios
 ```
 
 To look around first without a USOS account, run `tuios --mock`. It never connects to
-USOS: the students are a random cast from Mozart's operas, the courses and points are
-made up on each start, and all of it is gone when the program exits.
+USOS: the students, courses and points are random, made up on each start, and gone
+when the program exits.
