@@ -312,7 +312,11 @@ impl App {
         self.tree
             .ready()
             .and_then(|t| t.students.iter().find(|s| s.id == id))
-            .map(|s| format!("{} {}", s.last_name, s.first_name))
+            .map(|s| {
+                format!("{} {}", s.last_name, s.first_name)
+                    .trim_end()
+                    .to_string()
+            })
             .unwrap_or_else(|| id.to_string())
     }
 
@@ -470,6 +474,8 @@ impl App {
             .map(|i| {
                 let s = &tree.students[i];
                 format!("{} {}", s.last_name, s.first_name)
+                    .trim_end()
+                    .to_string()
             })
             .collect()
     }

@@ -828,38 +828,60 @@ impl Rng {
 
 impl Mock {
     fn new() -> Self {
-        // (first name, takes the feminine surname form)
-        const FIRST: [(&str, bool); 16] = [
-            ("Anna", true),
-            ("Piotr", false),
-            ("Zofia", true),
-            ("Jakub", false),
-            ("Maja", true),
-            ("Kacper", false),
-            ("Julia", true),
-            ("Michał", false),
-            ("Hanna", true),
-            ("Antoni", false),
-            ("Lena", true),
-            ("Filip", false),
-            ("Oliwia", true),
-            ("Mikołaj", false),
-            ("Alicja", true),
-            ("Tymon", false),
-        ];
-        const LAST: [(&str, &str); 12] = [
-            ("Lewandowski", "Lewandowska"),
-            ("Wiśniewski", "Wiśniewska"),
-            ("Kowalczyk", "Kowalczyk"),
-            ("Zieliński", "Zielińska"),
-            ("Wójcik", "Wójcik"),
-            ("Kamiński", "Kamińska"),
-            ("Szymański", "Szymańska"),
-            ("Dąbrowski", "Dąbrowska"),
-            ("Mazur", "Mazur"),
-            ("Krawczyk", "Krawczyk"),
-            ("Pawłowski", "Pawłowska"),
-            ("Grabowski", "Grabowska"),
+        // Characters from Mozart's operas, so nobody can mistake a screenshot of the
+        // mock for real students. Each is one name, kept whole in `last_name`.
+        const CHARACTERS: [&str; 44] = [
+            // Le nozze di Figaro
+            "Figaro",
+            "Susanna",
+            "Cherubino",
+            "Barbarina",
+            "Marcellina",
+            "Bartolo",
+            "Basilio",
+            "Contessa Almaviva",
+            "Conte Almaviva",
+            "Don Curzio",
+            // Don Giovanni
+            "Don Giovanni",
+            "Leporello",
+            "Zerlina",
+            "Masetto",
+            "Donna Anna",
+            "Donna Elvira",
+            "Don Ottavio",
+            "Commendatore",
+            // Così fan tutte
+            "Fiordiligi",
+            "Dorabella",
+            "Despina",
+            "Ferrando",
+            "Guglielmo",
+            "Don Alfonso",
+            // Die Zauberflöte
+            "Tamino",
+            "Pamina",
+            "Papageno",
+            "Papagena",
+            "Sarastro",
+            "Monostatos",
+            "Königin der Nacht",
+            // Die Entführung aus dem Serail
+            "Konstanze",
+            "Blonde",
+            "Belmonte",
+            "Pedrillo",
+            "Osmin",
+            "Bassa Selim",
+            // Idomeneo
+            "Idomeneo",
+            "Idamante",
+            "Ilia",
+            "Elettra",
+            // La clemenza di Tito
+            "Vitellia",
+            "Sesto",
+            "Servilia",
         ];
         const COMMENTS: [&str; 6] = [
             "Dobra robota",
@@ -870,23 +892,14 @@ impl Mock {
             "Brakuje obsługi błędów",
         ];
         let mut rng = Rng::seeded();
-        let mut students: Vec<Person> = Vec::new();
-        while students.len() < 24 {
-            let (first, feminine) = *rng.pick(&FIRST);
-            let (m, f) = *rng.pick(&LAST);
-            let last = if feminine { f } else { m };
-            if students
-                .iter()
-                .any(|p| p.first_name == first && p.last_name == last)
-            {
-                continue;
-            }
-            students.push(Person {
-                id: format!("{}", 100 + students.len()),
-                first_name: first.into(),
-                last_name: last.into(),
-            });
-        }
+        let mut pool = CHARACTERS.to_vec();
+        let mut students: Vec<Person> = (0..24)
+            .map(|i| Person {
+                id: format!("{}", 100 + i),
+                first_name: String::new(),
+                last_name: pool.swap_remove(rng.below(pool.len())).into(),
+            })
+            .collect();
         sort_people(&mut students);
         let node = |id, parent, name: &str, kind| Node {
             id,
